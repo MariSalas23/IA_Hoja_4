@@ -36,7 +36,8 @@ class UniformCostSearch:
         self._cost = cost
 
         # Estructuras UCS
-        self._closed = set()                    
+        self._closed = set()                   
+        self._closed_nodes = []                
         self._open_heap = []                    
         self._open_by_head = {}                 
         self._counter = count()                 
@@ -47,8 +48,31 @@ class UniformCostSearch:
 
         # Inicializar OPEN
         root = Path(n0, parent=None, g=0, a=None)
-        self._open_by_head[n0] = root
+        self._open_by_head[self._key(n0)] = root
         heapq.heappush(self._open_heap, (0, next(self._counter), root))
+
+    def _extract_lowest_cost_path(self): # Extrae el Path valido con menor costo g desde OPEN
+ 
+        while self._open_heap:
+            g, _, p = heapq.heappop(self._open_heap)
+            k = self._key(p.head)
+            if (k in self._closed) or (self._open_by_head.get(k) is not p):
+                continue
+            return p
+        return None
+    
+    def _key(self, n): # Devuelve una clave hashable para 'n'. Si 'n' ya es hashable
+
+        try:
+            hash(n)
+            return n
+        
+        except TypeError:
+            board = getattr(n, "board", None)
+            if board is not None:
+                return board.tobytes()
+            
+            return repr(n)
 
     @property
     def open(self):
@@ -66,7 +90,7 @@ class UniformCostSearch:
         Returns:
             collection: The collection of nodes on CLOSED
         """
-        return set(self._closed) # Returns the collection of nodes on CLOSED
+        return tuple(self._closed_nodes)  # Returns the collection of nodes on CLOSED
 
     @property
     def is_active(self):
@@ -107,6 +131,7 @@ class UniformCostSearch:
     
     def step(self):
         """
+
         Executes a single step of the main loop of Uniform Cost Search
 
         Returns:
@@ -115,7 +140,7 @@ class UniformCostSearch:
         if not self.is_active:
             return None # Si ya se encontró solución óptima o OPEN está vacío, no hay más pasos
 
-        p = self._pop_min_open() # Camino con menor costo acumulado
+        p = self._extract_lowest_cost_path() # Camino con menor costo acumulado
         if p is None:
             return None # OPEN está vacío, no se puede expandir
 
@@ -123,24 +148,28 @@ class UniformCostSearch:
             self._solved_path = p
             return p
 
-        self._closed.add(p.head) # Nodo a CLOSED
-        self._open_by_head.pop(p.head, None)
+        # --- usar clave hashable ---
+        k = self._key(p.head)
+        self._closed.add(k)             # Nodo a CLOSED (clave)
+        self._closed_nodes.append(p.head)  # Guardar nodo real para exponerlo en .closed
+        self._open_by_head.pop(k, None)
 
         # Expandir sucesores del nodo actual
         for (a, nprime) in self._succ(p.head):
-            if nprime in self._closed:
+            nprime_key = self._key(nprime)
+            if nprime_key in self._closed:
                 continue
             new_g = p.g + self._cost(p.head, nprime)
 
-            existing = self._open_by_head.get(nprime)
+            existing = self._open_by_head.get(nprime_key)
             if existing is None:
                 child = Path(nprime, parent=p, g=new_g, a=a)
-                self._open_by_head[nprime] = child
+                self._open_by_head[nprime_key] = child
                 heapq.heappush(self._open_heap, (child.g, next(self._counter), child))
                 if self._star(nprime):
                     if (self._best_goal_on_open is None) or (child.g < self._best_goal_on_open.g):
                         self._best_goal_on_open = child
-            else: # El sucesor ya estaba en OPEN, se aplica "parent discarding"
+            else: # El sucesor ya estaba en OPEN, se aplica parent discarding
                 if new_g < existing.g:
                     existing.parent = p
                     existing.g = new_g
