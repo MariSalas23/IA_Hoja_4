@@ -144,15 +144,15 @@ class UniformCostSearch:
         if p is None:
             return None # OPEN está vacío, no se puede expandir
 
+        k = self._key(p.head)
+        self._open_by_head.pop(k, None)
+
         if self._star(p.head): # Si el head es goal, se termina y se guarda la solución
             self._solved_path = p
             return p
 
-        # --- usar clave hashable ---
-        k = self._key(p.head)
         self._closed.add(k)             # Nodo a CLOSED (clave)
-        self._closed_nodes.append(p.head)  # Guardar nodo real para exponerlo en .closed
-        self._open_by_head.pop(k, None)
+        self._closed_nodes.append(p.head)  # Guardar nodo real para exponerlo en CLOSED
 
         # Expandir sucesores del nodo actual
         for (a, nprime) in self._succ(p.head):
